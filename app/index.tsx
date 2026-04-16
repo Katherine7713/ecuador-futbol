@@ -1,17 +1,67 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Stack } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 import TeamCard from "../components/TeamCard";
 import { teams } from "../data/teams";
 
+type Match = {
+  id: string;
+  home: string;
+  away: string;
+  date: string;
+};
+
+const STORAGE_KEY = "@favorite_teams";
+
 export default function HomeScreen() {
   const [search, setSearch] = useState("");
+  const [favorites, setFavorites] = useState<string[]>([]);
 
+  // 📥 Cargar favoritos
+  useEffect(() => {
+    loadFavorites();
+  }, []);
+
+  const loadFavorites = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(STORAGE_KEY);
+      if (saved !== null) {
+        setFavorites(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.log("Error cargando favoritos:", e);
+    }
+  };
+
+  // 💾 Guardar favoritos
+  const saveFavorites = async (value: string[]) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    } catch (e) {
+      console.log("Error guardando favoritos:", e);
+    }
+  };
+
+  const toggleFavorite = (teamId: string) => {
+    setFavorites((prev) => {
+      const isFav = prev.includes(teamId);
+
+      const updated = isFav
+        ? prev.filter((id) => id !== teamId)
+        : [...prev, teamId];
+
+      saveFavorites(updated);
+      return updated;
+    });
+  };
+
+  // 🔍 filtro equipos
   const filteredTeams = teams.filter((team) =>
     team.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // 📊 ESTADÍSTICAS
+  // 📊 estadísticas
   const totalTeams = teams.length;
 
   const totalWins = teams.reduce(
@@ -30,12 +80,7 @@ export default function HomeScreen() {
 
   const winRate = ((totalWins / totalMatches) * 100).toFixed(1);
 
-  type Match = {
-    id: string;
-    home: string;
-    away: string;
-    date: string;
-  };
+  // 📅 partidos
   const matches: Match[] = [
     { id: "1", home: "LDU", away: "Barcelona SC", date: "20 Abril" },
     { id: "2", home: "Emelec", away: "Delfín", date: "22 Abril" },
@@ -50,6 +95,7 @@ export default function HomeScreen() {
     },
     {}
   );
+
   const calendarData = Object.keys(grouped).map((date) => ({
     date,
     matches: grouped[date],
@@ -79,8 +125,14 @@ export default function HomeScreen() {
       <FlatList
         data={filteredTeams}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TeamCard team={item} />}
         contentContainerStyle={styles.list}
+        renderItem={({ item }) => (
+          <TeamCard
+            team={item}
+            isFavorite={favorites.includes(item.id)}
+            onPress={() => toggleFavorite(item.id)}
+          />
+        )}
       />
 
       {/* 📅 CALENDARIO */}
@@ -96,7 +148,7 @@ export default function HomeScreen() {
             {item.matches.map((match: Match) => (
               <View key={match.id} style={styles.card}>
                 <Text style={styles.match}>
-                  ⚽ {match.home} vs {match.away}S
+                  ⚽ {match.home} vs {match.away}
                 </Text>
               </View>
             ))}
@@ -108,17 +160,13 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  //Contenedor base de la pantalla.
   container: {
     flex: 1,
     backgroundColor: "#f0f4f8",
   },
-
-  //Espaciado vertical interno de la lista.
   list: {
     paddingVertical: 10,
   },
-  //Estilo del input de búsqueda con fondo claro y bordes redondeados.
   input: {
     backgroundColor: "#fff",
     margin: 10,
@@ -128,7 +176,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     elevation: 2,
   },
-  //Contenedor de estadísticas con fondo destacado y margen.
   statsBox: {
     backgroundColor: "#fff",
     margin: 10,
@@ -137,20 +184,17 @@ const styles = StyleSheet.create({
     elevation: 2,
     alignItems: "center",
   },
-  //Estilo del título de la sección de estadísticas.
   statsTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#1a1a2e",
     marginBottom: 8,
   },
-  //Estilo del texto de cada estadística individual.
   statsText: {
     fontSize: 14,
     color: "#333",
     marginBottom: 4,
   },
-  //Estilo del título de la sección de calendario.
   title: {
     fontSize: 18,
     fontWeight: "bold",
@@ -158,7 +202,6 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     marginTop: 20,
   },
-  //Contenedor para cada bloque de fecha en el calendario.
   dayBlock: {
     backgroundColor: "#fff",
     margin: 10,
@@ -166,14 +209,12 @@ const styles = StyleSheet.create({
     padding: 12,
     elevation: 2,
   },
-  //Estilo del texto que muestra la fecha de los partidos.
   date: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#1a1a2e",
     marginBottom: 8,
   },
-  //Estilo del texto que muestra el enfrentamiento entre equipos.
   match: {
     fontSize: 14,
     color: "#333",
